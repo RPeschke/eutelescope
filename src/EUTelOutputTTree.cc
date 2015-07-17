@@ -38,8 +38,12 @@ using namespace std;
 #include <TFile.h>
 #include <TTree.h>
 #include "EUTelTrack.h"
+#include "EUTelHit.h"
+#include "EUTelReaderGenericLCIO.h"
+
 
 class output;
+class GBL_trackOutput;
 namespace eutelescope {
 
 
@@ -49,6 +53,7 @@ namespace eutelescope {
     virtual Processor*  newProcessor() { return new EUTelOutputTTree; }
 
     EUTelOutputTTree();
+    ~EUTelOutputTTree(){ delete m_gbl; }
     virtual void init();
     virtual void processRunHeader(LCRunHeader* run);
     virtual void processEvent(LCEvent * evt);
@@ -66,6 +71,7 @@ namespace eutelescope {
     bool first;
     typedef std::map<std::string, output*> output_map_t;
     output_map_t m_out;
+    GBL_trackOutput* m_gbl;
     TTree *m_tree;
     TFile *m_file;
     std::string path;
@@ -168,23 +174,109 @@ public:
   bool warning;
 };
 
-class GBL_trackOutput : public output{
+class GBL_trackOutput {
 public:
   typedef EUTelTrack * data_t;
-  static const char* TypeName(){
-    return "LCGenericObject";
+
+  GBL_trackOutput(const std::string& name )  {
+    m_tree = new TTree(name.c_str(), name.c_str());
+    m_tree->Branch("ID", &m_id);
+    m_tree->Branch("x", &m_x);
+    m_tree->Branch("y", &m_y);
+
+
+    m_tree->Branch("chi2", &m_chi2);
+    m_tree->Branch("ndf", &m_ndf);
+    m_tree->Branch("phi", &m_phi);
+    m_tree->Branch("theta", &m_theta);
+
+    m_tree->Branch("event_nr", &m_event_nr);
   }
-  LCGenericObject_output(const std::string& name, const std::string& type) :output(name, type), warning(true) {}
-  virtual void pushCollection(const EVENT::LCCollection* col) {
+  virtual void pushCollection( EVENT::LCEvent* ev) {
+    beginEvent();
+    std::vector<EUTelTrack> tr = lc_reader.getTracks(ev, "tracks");
 
-    if (warning)
+    for (size_t i = 0; i < tr.size();++i)
     {
-      std::cout << "not implemented type: " << TypeName() << std::endl;
-      warning = false;
-    }
-  };
+      processTrack(tr[i]);
 
-  bool warning;
+    
+    }
+    endEvent();
+  };
+  void beginEvent(){
+    m_x.clear();
+    m_y.clear();
+    m_id.clear();
+    m_phi.clear();
+    m_theta.clear();
+    m_ndf.clear();
+    m_chi2.clear();
+    ++m_event_nr;
+
+  }
+  void endEvent(){
+    m_tree->Fill();
+  }
+  void processTrack(EUTelTrack& trc){
+    
+    std::vector<EUTelState>& planes = trc.getStates();
+
+    chi2 = trc.getChi2();
+    ndf = trc.getNdf();
+    for (size_t i = 0; planes.size(); ++i){
+      
+      processPlanes(planes[i]);
+    }
+  }
+  void processPlanes(EUTelState& pln){
+  
+   x = pln.getPosition()[0];
+   y = pln.getPosition()[1];
+  
+   ID = static_cast<double>(pln.getLocation());
+
+   phi = pln.getDirLocalX() / pln.getDirLocalZ();
+   theta = pln.getDirLocalY() / pln.getDirLocalZ();
+
+    
+   pushHit();
+
+
+  }
+  void pushHit(){
+  
+    m_x.push_back(x);
+    m_y.push_back(y);
+    m_id.push_back(ID);
+    m_phi.push_back(phi);
+    m_theta.push_back(theta);
+
+    m_ndf.push_back(ndf);
+    m_chi2.push_back(chi2);
+    
+
+  }
+
+
+  double x;
+  double y;
+
+  double ID;
+
+  double phi;
+  double theta;
+
+
+
+  double chi2;
+  double ndf;
+  EUTelReaderGenericLCIO lc_reader;
+  int m_event_nr;
+  TTree *m_tree;
+  std::string m_name, m_type;
+  std::vector<double> m_x, m_y, m_id,
+    m_chi2,m_ndf,m_phi,m_theta;
 };
 
 
@@ -356,7 +448,30 @@ public:
 
   }
 };
+
+class ignoreNames{
+public:
+  static bool isIgnored(const std::string & name){
+    if (name == "HitsFORtracks")
+    {
+      return true;
+    }
+
+    if (name == "StateHitFORtracks")
+    {
+      return true;
+    }
+
+    return false;
+  }
+};
 output* createOutput(const std::string& name, const std::string& type){
+ 
+  if (ignoreNames::isIgnored(name))
+  {
+    return 0;
+  }
+
   if (type == Track_output::TypeName()){
     return new Track_output(name, type);
   }
@@ -387,7 +502,7 @@ output* createOutput(const std::string& name, const std::string& type){
 }
 
 
-EUTelOutputTTree::EUTelOutputTTree() :Processor("EUTelOutputTTree"), m_file(NULL), m_tree(NULL){
+EUTelOutputTTree::EUTelOutputTTree() :Processor("EUTelOutputTTree"), m_file(NULL), m_tree(NULL) , m_gbl(NULL){
 
   
   registerProcessorParameter("OutputPath", "Path/File where root-file should be stored",
@@ -404,7 +519,7 @@ void EUTelOutputTTree::init()
   gStupitNameForShittyROOTFile = path;
 
 
-
+  m_gbl = new GBL_trackOutput("GBL_tracks");
 
   std::cout << "EUTelOutputTTree::init" << std::endl;
 }
@@ -418,10 +533,17 @@ void EUTelOutputTTree::processRunHeader(LCRunHeader* run)
 void EUTelOutputTTree::processEvent(LCEvent * evt)
 {
   const std::vector<std::string>*  names = evt->getCollectionNames();
+ 
+
+  
 
   std::vector< std::string >::const_iterator name;
     for (name = names->begin(); name != names->end(); name++){
 
+      if (ignoreNames::isIgnored(*name))
+      {
+        continue;
+      }
       LCCollection* col = evt->getCollection(*name);
       if (!col)
       {
@@ -438,6 +560,8 @@ void EUTelOutputTTree::processEvent(LCEvent * evt)
 
     }
 
+    
+    m_gbl->pushCollection(evt);
 
     for (output_map_t::const_iterator it = m_out.begin(); it != m_out.end(); ++it){
       it->second->eventEnd();
@@ -459,6 +583,12 @@ void EUTelOutputTTree::end()
     delete gFile_;
     gFile_ = NULL;
   }
+  if (m_gbl)
+  {
+    delete m_gbl;
+    m_gbl = NULL;
+  }
+
   std::cout << "EUTelOutputTTree::end" << std::endl;
 }
 

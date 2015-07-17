@@ -37,6 +37,7 @@ using namespace std;
 
 #include <TFile.h>
 #include <TTree.h>
+#include "EUTelTrack.h"
 
 class output;
 namespace eutelescope {
@@ -166,6 +167,26 @@ public:
   };
   bool warning;
 };
+
+class GBL_trackOutput : public output{
+public:
+  typedef EUTelTrack * data_t;
+  static const char* TypeName(){
+    return "LCGenericObject";
+  }
+  LCGenericObject_output(const std::string& name, const std::string& type) :output(name, type), warning(true) {}
+  virtual void pushCollection(const EVENT::LCCollection* col) {
+
+    if (warning)
+    {
+      std::cout << "not implemented type: " << TypeName() << std::endl;
+      warning = false;
+    }
+  };
+
+  bool warning;
+};
+
 
 class LCGenericObject_output : public output{
 public:

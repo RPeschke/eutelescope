@@ -24,6 +24,7 @@
 #include <AIDA/IHistogramFactory.h>
 #include <AIDA/IProfile2D.h>
 #endif // MARLIN_USE_AIDA
+#include "EUTelReaderGenericLCIO.h"
 
 namespace eutelescope {
 
@@ -51,19 +52,23 @@ namespace eutelescope {
    	/** Called after data processing for clean up. **/
 		virtual void end();
 		void initialiseResidualVsPositionHistograms();
+		void initialiseEfficiencyVsPositionHistograms();
 		
 		std::string _trackInputCollectionName;
 		EUTelTrackAnalysis* _analysis;
 		IntVec _sensorIDs;
 		std::map< int,  AIDA::IProfile2D* > _mapFromSensorIDToHistogramX;
 		std::map< int,  AIDA::IProfile2D* > _mapFromSensorIDToHistogramY;
+		std::map< int,  AIDA::IProfile2D* > _mapFromSensorIDToEfficiencyX;
+		std::map< int,  AIDA::IProfile2D* > _mapFromSensorIDToEfficiencyY;
 		std::map< int,  AIDA::IProfile2D* > _mapFromSensorIDToPValueHisto;
-		std::map< int,   AIDA::IHistogram1D *> _mapFromSensorIDToKinkXZ;
-		std::map< int,  AIDA::IHistogram1D * > _mapFromSensorIDToKinkYZ;
+		std::map< int,   AIDA::IHistogram1D *> _mapFromSensorIDToGloIncXZ;
+		std::map< int,  AIDA::IHistogram1D * > _mapFromSensorIDToGloIncYZ;
 		std::map< int,  AIDA::IProfile1D* > _mapFromSensorIDToPValuesVsIncidenceXZ;
 		std::map< int,  AIDA::IProfile1D* > _mapFromSensorIDToPValuesVsIncidenceYZ;
 		AIDA::IHistogram1D * _beamEnergy;
 		AIDA::IProfile1D *_pValueVsBeamEnergy;
+        std::string _histoInfoFileName;
 	};
 
     EUTelProcessorTrackAnalysis gEUTelProcessorTrackAnalysis;

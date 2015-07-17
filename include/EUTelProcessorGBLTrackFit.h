@@ -37,13 +37,11 @@
 #include "EUTelUtility.h"
 #include "EUTelGeometryTelescopeGeoDescription.h"
 #include "EUTelRunHeaderImpl.h"
-#include "EUTelTrackFitter.h"
 #include "EUTelGBLFitter.h"
 #include "EUTelExceptions.h"
 #include "EUTelEventImpl.h"
-#include "EUTelTrackStateImpl.h"
-#include "EUTelTrackImpl.h"
 #include "EUTelHistogramManager.h"
+#include "EUTelReaderGenericLCIO.h"
 
 namespace eutelescope {
 
@@ -79,11 +77,12 @@ namespace eutelescope {
 
     protected:
 
-			bool _first_time;
 			/** Number of events processed */
 			int _nProcessedRuns;
 			/** Number of runs processed */
 			int _nProcessedEvents;
+			/** Number of runs processed */
+			int _nTrackCand;
 
 			/** Beam charge in [e] */
 			double _beamQ;
@@ -124,7 +123,7 @@ namespace eutelescope {
 
 			void bookHistograms();
 
-			void plotResidual(std::map< int, std::map<float, float > >  & sensorResidual, std::map< int, std::map<float, float > >  & sensorResidualError, bool &first_time);
+			void plotResidual(std::map< int, std::map<float, float > >  & sensorResidual, std::map< int, std::map<float, float > >  & sensorResidualError, std::map< int, int > & planes);
 				
 //TO DO: Fix all this histogramming stuff.
 #if defined(USE_AIDA) || defined(MARLIN_USE_AIDA)
@@ -152,12 +151,16 @@ namespace eutelescope {
 						static std::string _residGblFitHistNameX3;
 						static std::string _residGblFitHistNameX4;
 						static std::string _residGblFitHistNameX5;
-						static std::string _residGblFitHistNameY0;
+	                                        static std::string _residGblFitHistNameXDut1;
+	  	                                static std::string _residGblFitHistNameXDut2;
+	  					static std::string _residGblFitHistNameY0;
 						static std::string _residGblFitHistNameY1;
 						static std::string _residGblFitHistNameY2;
 						static std::string _residGblFitHistNameY3;
 						static std::string _residGblFitHistNameY4;
 						static std::string _residGblFitHistNameY5;
+	                                        static std::string _residGblFitHistNameYDut1;
+	                                        static std::string _residGblFitHistNameYDut2;
 
 						static std::string _residGblFitHistNameX0p;
 						static std::string _residGblFitHistNameX1p;
@@ -165,12 +168,16 @@ namespace eutelescope {
 						static std::string _residGblFitHistNameX3p;
 						static std::string _residGblFitHistNameX4p;
 						static std::string _residGblFitHistNameX5p;
+	                                        static std::string _residGblFitHistNameXDut1p;
+	                                        static std::string _residGblFitHistNameXDut2p;
 						static std::string _residGblFitHistNameY0p;
 						static std::string _residGblFitHistNameY1p;
 						static std::string _residGblFitHistNameY2p;
 						static std::string _residGblFitHistNameY3p;
 						static std::string _residGblFitHistNameY4p;
 						static std::string _residGblFitHistNameY5p;
+	                                        static std::string _residGblFitHistNameYDut1p;
+	                                        static std::string _residGblFitHistNameYDut2p;
 
         };
 

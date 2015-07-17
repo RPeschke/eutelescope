@@ -276,11 +276,9 @@ void EUTelProcessorHitMaker::processEvent (LCEvent * event) {
 
     int oldDetectorID = -100;
 
-    double xZero = 0., yZero = 0., zZero = 0. ;
-    double xSize = 0., ySize = 0., zThickness = 0.;
+    double xSize = 0., ySize = 0.;
     double resolutionX = 0., resolutionY = 0.;
     double xPitch = 0., yPitch = 0.;
-    int xNpixels = 0, yNpixels = 0;
 
 	for( int iCluster = 0; iCluster < pulseCollection->getNumberOfElements(); iCluster++ ) 
 	{
@@ -306,22 +304,15 @@ void EUTelProcessorHitMaker::processEvent (LCEvent * event) {
 							bookHistos( sensorID );
 					}
 
-					xZero        = geo::gGeometry().siPlaneXPosition( sensorID ); // mm
-					yZero        = geo::gGeometry().siPlaneYPosition( sensorID ); // mm
-					zZero        = geo::gGeometry().siPlaneZPosition( sensorID ); // mm
-
 					resolutionX  = geo::gGeometry().siPlaneXResolution( sensorID );// mm
 					resolutionY  = geo::gGeometry().siPlaneYResolution( sensorID );// mm
 
 					xSize        = geo::gGeometry().siPlaneXSize ( sensorID );    // mm
 					ySize        = geo::gGeometry().siPlaneYSize ( sensorID );    // mm
-					zThickness   = geo::gGeometry().siPlaneZSize ( sensorID );    // mm
 
 					xPitch       = geo::gGeometry().siPlaneXPitch( sensorID );    // mm
 					yPitch       = geo::gGeometry().siPlaneYPitch( sensorID );    // mm
 
-					xNpixels     = geo::gGeometry().siPlaneXNpixels( sensorID );    // mm
-					yNpixels     = geo::gGeometry().siPlaneYNpixels( sensorID );    // mm
 			}
 
 
@@ -470,7 +461,10 @@ void EUTelProcessorHitMaker::processEvent (LCEvent * event) {
 					AIDA::IHistogram2D * histo2D = dynamic_cast<AIDA::IHistogram2D*> (_aidaHistoMap[ tempHistoName ] );
 					if ( histo2D )
 					{
-							histo2D->fill( telPos[0], telPos[1] );
+                            const double localPos[3] = { telPos[0], telPos[1], telPos[2] };
+                            double gloPos[3];
+                            geo::gGeometry().local2Master( sensorID, localPos, gloPos);
+							histo2D->fill( gloPos[0], gloPos[1] );
 					}
 					else 
 					{
@@ -493,6 +487,7 @@ void EUTelProcessorHitMaker::processEvent (LCEvent * event) {
 			cov[2] = resy * resy; // cov(y,y)
 			hit->setCovMatrix( cov );
 			hit->setType( clusterType  );
+            hit->setTime( pulse->getTime() );
 
 			// prepare a LCObjectVec to store the current cluster
 			LCObjectVec clusterVec;
@@ -579,11 +574,11 @@ void EUTelProcessorHitMaker::bookHistos(int sensorID) {
   int xBin         =  geo::gGeometry().siPlaneXNpixels( sensorID );
   int yBin         =  geo::gGeometry().siPlaneYNpixels( sensorID );
 
-  xMin = safetyFactor * ( xPosition - ( 0.5 * xSize ));
-  xMax = safetyFactor * ( xPosition + ( 0.5 * xSize ));
+  xMin = -20;  // safetyFactor * ( xPosition - ( 0.5 * xSize ));
+  xMax = 20; // safetyFactor * ( xPosition + ( 0.5 * xSize ));
 
-  yMin = safetyFactor * ( yPosition - ( 0.5 * ySize ));
-  yMax = safetyFactor * ( yPosition + ( 0.5 * ySize ));
+  yMin = -20; // safetyFactor * ( yPosition - ( 0.5 * ySize ));
+  yMax = 20; // safetyFactor * ( yPosition + ( 0.5 * ySize ));
 
   xNBin = static_cast< int > ( safetyFactor  * xBin );
   yNBin = static_cast< int > ( safetyFactor  * yBin );

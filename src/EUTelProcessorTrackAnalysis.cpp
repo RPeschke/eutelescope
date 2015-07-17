@@ -13,6 +13,7 @@ Processor("EUTelProcessorTrackAnalysis"){
 	
 	registerInputCollection(LCIO::TRACK, "TrackInputCollectionName", "Input track collection name",_trackInputCollectionName,std::string("TrackCandidatesCollection"));
 	registerOptionalParameter("SensorIDs", "A vector of the sensor IDs to plot",_sensorIDs,IntVec());
+    registerOptionalParameter("HistogramInfoFilename", "Name of histogram info xml file", _histoInfoFileName, std::string("histoinfo.xml"));
 
 	
 	
@@ -22,8 +23,9 @@ Processor("EUTelProcessorTrackAnalysis"){
 void EUTelProcessorTrackAnalysis::init(){
 	try{
 		initialiseResidualVsPositionHistograms();
+		initialiseEfficiencyVsPositionHistograms();
 		//Some initialised in the constructor in part 2.
-		EUTelTrackAnalysis*	analysis = new EUTelTrackAnalysis(_mapFromSensorIDToHistogramX,_mapFromSensorIDToHistogramY,_mapFromSensorIDToKinkXZ,_mapFromSensorIDToKinkYZ,_beamEnergy); 
+		EUTelTrackAnalysis*	analysis = new EUTelTrackAnalysis(_mapFromSensorIDToHistogramX,_mapFromSensorIDToHistogramY,_mapFromSensorIDToEfficiencyX,_mapFromSensorIDToEfficiencyY,_mapFromSensorIDToGloIncXZ,_mapFromSensorIDToGloIncYZ,_beamEnergy); 
 
 		//Others here.
 		analysis->setSensorIDTo2DPValuesWithPosition(_mapFromSensorIDToPValueHisto);
@@ -48,41 +50,46 @@ void EUTelProcessorTrackAnalysis::processEvent(LCEvent * evt){
 		}else if (event->getEventType() == kUNKNOWN) {
 			streamlog_out(WARNING2) << "Event number " << event->getEventNumber() << " in run " << event->getRunNumber() << " is of unknown type. Continue considering it as a normal Data Event." << std::endl;
 		}
-		LCCollection* eventCollection = NULL;
-		try {
-			eventCollection = evt->getCollection(_trackInputCollectionName);
-			streamlog_out(DEBUG1) << "collection : " << _trackInputCollectionName << " retrieved" << std::endl;
-		}catch (DataNotAvailableException e) {
-			streamlog_out(MESSAGE0) << _trackInputCollectionName << " collection not available" << std::endl;
-			throw marlin::SkipEventException(this);
-		}
-		if (eventCollection != NULL) {
-			streamlog_out(DEBUG2) << "Collection contains data! Continue!" << std::endl;
-			for (int iTrack = 0; iTrack < eventCollection->getNumberOfElements(); ++iTrack){
-				EUTelTrack track = *(static_cast<EUTelTrack*> (eventCollection->getElementAt(iTrack)));
-				_analysis->plotResidualVsPosition(track);	
-				_analysis->plotIncidenceAngles(track);
-				if(track.getChi2()/track.getNdf() < 5.0){
-					_analysis->plotBeamEnergy(track);
-					_analysis->plotPValueVsBeamEnergy(track);
-				}
-
-				_analysis->plotPValueWithPosition(track);
-				_analysis->plotPValueWithIncidenceAngles(track);
-			}
-
-		}	
-	}catch(...){	
-		streamlog_out(MESSAGE9)<<"There is an unknown error in EUTelProcessorTrackAnalysis-processEvent" <<std::endl;
+        streamlog_out(DEBUG2) << "Collection contains data! Continue!" << std::endl;
+        EUTelReaderGenericLCIO reader = EUTelReaderGenericLCIO(); streamlog_out(DEBUG2) << "Collection contains data! Continue! line 53" << std::endl;
+        streamlog_out(DEBUG2) << "_trackInputCollectionName = " <<_trackInputCollectionName<<std::endl;
+        std::vector<EUTelTrack> tracks = reader.getTracks(evt, _trackInputCollectionName);
+        streamlog_out(DEBUG2) << "Collection contains data! Continue! line 54: tracks.size() = " << tracks.size()<<std::endl;
+        for (int iTrack = 0; iTrack < tracks.size(); ++iTrack){
+   //         track.print();
+            EUTelTrack track = tracks.at(iTrack); 
+            _analysis->plotResidualVsPosition(track);	
+            _analysis->plotEfficiencyVsPosition(track);	
+            _analysis->plotIncidenceAngles(track);
+            if(track.getChi2()/track.getNdf() < 5.0){
+                _analysis->plotBeamEnergy(track);
+                _analysis->plotPValueVsBeamEnergy(track);
+            }//if(track.getChi2()/track.getNdf() < 5.0){
+            _analysis->plotPValueWithPosition(track);
+            _analysis->plotPValueWithIncidenceAngles(track);
+        }//for (int iTrack = 0; iTrack < tracks.size(); ++iTrack){
+        }catch (DataNotAvailableException e) {
+//		streamlog_out(WARNING2) << " Collection not available" << std::endl;
+		throw marlin::SkipEventException(this);
+	}
+	catch(std::string &e){
+		streamlog_out(MESSAGE9) << e << std::endl;
+		throw marlin::SkipEventException( this ) ;
+	}
+	catch(lcio::Exception& e){
+		streamlog_out(MESSAGE9) << e.what() <<std::endl;
 		throw marlin::StopProcessingException( this ) ;
 	}
-	
+	catch(...){
+		streamlog_out(MESSAGE9)<<"Unknown exception in process function of track analysis" <<std::endl;
+		throw marlin::StopProcessingException( this ) ;
+	}
+
 	
 }
 
 void EUTelProcessorTrackAnalysis::end(){}
-
-void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
+void	EUTelProcessorTrackAnalysis::initialiseEfficiencyVsPositionHistograms(){
 	int NBinX;
 	double MinX;
 	double MaxX;
@@ -92,11 +99,9 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 	double MinZ;
 	double MaxZ;
 
-	std::string _histoInfoFileName="histoInfo.xml";
 	std::auto_ptr<EUTelHistogramManager> histoMgr( new EUTelHistogramManager( _histoInfoFileName ));
 	EUTelHistogramInfo    * histoInfo;
-	bool                    isHistoManagerAvailable;
-
+    bool isHistoManagerAvailable;
 	try {
 			isHistoManagerAvailable = histoMgr->init( );
 	} catch ( std::ios::failure& e ) {
@@ -108,6 +113,95 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 							<< "Continuing without histogram manager using default settings" << std::endl;
 			isHistoManagerAvailable = false;
 	}
+	isHistoManagerAvailable = false;
+
+
+	std::stringstream sstm;
+	std::string effGblFitHistName;
+	std::string histTitle;
+
+
+	for (size_t i = 0; i < _sensorIDs.size() ; ++i){
+		/////////////////////////////////////////////////////////////////////////////XY efficiency plots with position
+		sstm << "EfficienyX" << _sensorIDs.at(i);
+		effGblFitHistName = sstm.str();
+		sstm.str(std::string());
+		sstm << "EfficienysX. Plane " <<  _sensorIDs.at(i) << ";X direction; Y direction";
+		histTitle = sstm.str();
+		sstm.str(std::string(""));
+		histoInfo = histoMgr->getHistogramInfo(effGblFitHistName);
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 40;
+		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-10 ;
+		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 10;
+		NBinY = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yBin : 20;
+		MinY =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yMin : -5;
+		MaxY =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yMax : 5;
+		MinZ =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_zMin : -20;
+		MaxZ =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_zMax : 20;
+		AIDA::IProfile2D *  residGblFitX =	marlin::AIDAProcessor::histogramFactory(this)->createProfile2D(effGblFitHistName,  NBinX, MinX, MaxX, NBinY, MinY, MaxY, MinZ,MaxZ);
+		if (residGblFitX) {
+				residGblFitX->setTitle(histTitle);
+				_mapFromSensorIDToEfficiencyX.insert(std::make_pair(_sensorIDs.at(i), residGblFitX));
+		} else {
+				streamlog_out(ERROR2) << "Problem booking the " << (effGblFitHistName) << std::endl;
+				streamlog_out(ERROR2) << "Very likely a problem with path name. Switching off histogramming and continue w/o" << std::endl;
+		}
+		sstm.str(std::string(""));
+	}
+	for(size_t i = 0; i < _sensorIDs.size() ; ++i){
+		sstm << "EfficienyY" << _sensorIDs.at(i);
+		effGblFitHistName = sstm.str();
+		sstm.str(std::string());
+		sstm << "EfficienysY. Plane " <<  _sensorIDs.at(i) << ";X direction; Y direction";
+		histTitle = sstm.str();
+		sstm.str(std::string(""));
+		histoInfo = histoMgr->getHistogramInfo(effGblFitHistName);
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 40;//every 500 micron there is a bin
+		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-10 ;
+		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 10;
+		NBinY = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yBin : 20;//every 500 micron there is a bin
+		MinY =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yMin : -5;
+		MaxY =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yMax : 5;
+		MinZ =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_zMin : -20;
+		MaxZ =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_zMax : 20;
+		AIDA::IProfile2D *  residGblFitY =	marlin::AIDAProcessor::histogramFactory(this)->createProfile2D(effGblFitHistName,  NBinX, MinX, MaxX, NBinY, MinY, MaxY, MinZ,MaxZ);
+		if (residGblFitY) {
+				residGblFitY->setTitle(histTitle);
+				_mapFromSensorIDToEfficiencyY.insert(std::make_pair(_sensorIDs.at(i), residGblFitY));
+		} else {
+				streamlog_out(ERROR2) << "Problem booking the " << (effGblFitHistName) << std::endl;
+				streamlog_out(ERROR2) << "Very likely a problem with path name. Switching off histogramming and continue w/o" << std::endl;
+		}
+		sstm.str(std::string(""));
+	}
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+}
+void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
+	int NBinX;
+	double MinX;
+	double MaxX;
+	int NBinY;
+	double MinY;
+	double MaxY;
+	double MinZ;
+	double MaxZ;
+
+	std::auto_ptr<EUTelHistogramManager> histoMgr( new EUTelHistogramManager( _histoInfoFileName ));
+	EUTelHistogramInfo    * histoInfo;
+    bool isHistoManagerAvailable;
+	try {
+			isHistoManagerAvailable = histoMgr->init( );
+	} catch ( std::ios::failure& e ) {
+			streamlog_out( ERROR5 ) << "I/O problem with " << _histoInfoFileName << "\n"
+							<< "Continuing without histogram manager using default settings"    << std::endl;
+			isHistoManagerAvailable = false;
+	} catch ( marlin::ParseException& e ) {
+			streamlog_out( ERROR5 ) << e.what( ) << "\n"
+							<< "Continuing without histogram manager using default settings" << std::endl;
+			isHistoManagerAvailable = false;
+	}
+	isHistoManagerAvailable = false;
+
 
 	std::stringstream sstm;
 	std::string residGblFitHistName;
@@ -171,18 +265,18 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 		sstm << "IncidenceXZ" << _sensorIDs.at(i);
 		residGblFitHistName = sstm.str();
 		sstm.str(std::string());
-		sstm << "Incidence local Tx (XZ plane). Plane " <<  _sensorIDs.at(i);
+		sstm << "Incidence Global Tx (XZ plane). Plane " <<  _sensorIDs.at(i);
 		histTitle = sstm.str();
 		sstm.str(std::string(""));
 		histoInfo = histoMgr->getHistogramInfo(residGblFitHistName);
-		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 40000;
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 180;
 		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-0.05 ;
-		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.005;
+		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.01;
 		AIDA::IHistogram1D * incidenceGblFitXZ = marlin::AIDAProcessor::histogramFactory(this)->createHistogram1D(residGblFitHistName, NBinX, MinX, MaxX); 
 
 		if (incidenceGblFitXZ){
 				incidenceGblFitXZ->setTitle(histTitle);
-				_mapFromSensorIDToKinkXZ.insert(std::make_pair(_sensorIDs.at(i), incidenceGblFitXZ));
+				_mapFromSensorIDToGloIncXZ.insert(std::make_pair(_sensorIDs.at(i), incidenceGblFitXZ));
 		} else {
 				streamlog_out(ERROR2) << "Problem booking the " << (residGblFitHistName) << std::endl;
 				streamlog_out(ERROR2) << "Very likely a problem with path name. Switching off histogramming and continue w/o" << std::endl;
@@ -193,18 +287,18 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 		sstm << "IncidenceYZ" << _sensorIDs.at(i);
 		residGblFitHistName = sstm.str();
 		sstm.str(std::string());
-		sstm << "Incidence local Ty (YZ plane). Plane " <<  _sensorIDs.at(i);
+		sstm << "Incidence Global Ty (YZ plane). Plane " <<  _sensorIDs.at(i);
 		histTitle = sstm.str();
 		sstm.str(std::string(""));
 		histoInfo = histoMgr->getHistogramInfo(residGblFitHistName);
-		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 40;
-		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-0.001 ;
-		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.001;
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 180;
+		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-0.05 ;
+		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.01;
 		AIDA::IHistogram1D * incidenceGblFitYZ = marlin::AIDAProcessor::histogramFactory(this)->createHistogram1D(residGblFitHistName, NBinX, MinX, MaxX); 
 
 		if (incidenceGblFitYZ) {
 				incidenceGblFitYZ->setTitle(histTitle);
-				_mapFromSensorIDToKinkYZ.insert(std::make_pair(_sensorIDs.at(i), incidenceGblFitYZ));
+				_mapFromSensorIDToGloIncYZ.insert(std::make_pair(_sensorIDs.at(i), incidenceGblFitYZ));
 		} else {
 				streamlog_out(ERROR2) << "Problem booking the " << (residGblFitHistName) << std::endl;
 				streamlog_out(ERROR2) << "Very likely a problem with path name. Switching off histogramming and continue w/o" << std::endl;
@@ -217,13 +311,13 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 		sstm << " Profile of p-values Vs IncidenceXZ" << _sensorIDs.at(i);
 		residGblFitHistName = sstm.str();
 		sstm.str(std::string());
-		sstm << "Profile of p-values Vs Incidence Angle, local Tx (XZ plane). Plane " <<  _sensorIDs.at(i);
+		sstm << "Profile of p-values Vs Incidence Angle, global Tx (XZ plane). Plane " <<  _sensorIDs.at(i);
 		histTitle = sstm.str();
 		sstm.str(std::string(""));
 		histoInfo = histoMgr->getHistogramInfo(residGblFitHistName);
-		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 40000;
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 60;
 		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-0.05 ;
-		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.005;
+		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.01;
 		AIDA::IProfile1D *pValueVsIncidenceXZ = marlin::AIDAProcessor::histogramFactory(this)->createProfile1D(residGblFitHistName, NBinX, MinX, MaxX, 0, 1); 
 
 		if (pValueVsIncidenceXZ){
@@ -239,13 +333,13 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 		sstm << " Profile of p-values Vs IncidenceYZ" << _sensorIDs.at(i);
 		residGblFitHistName = sstm.str();
 		sstm.str(std::string());
-		sstm << "Profile of p-values Vs Incidence Angle, local Ty (YZ plane). Plane " <<  _sensorIDs.at(i);
+		sstm << "Profile of p-values Vs Incidence Angle, global Ty (YZ plane). Plane " <<  _sensorIDs.at(i);
 		histTitle = sstm.str();
 		sstm.str(std::string(""));
 		histoInfo = histoMgr->getHistogramInfo(residGblFitHistName);
-		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 40;
-		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-0.001 ;
-		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.001;
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 60;
+		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-0.05 ;
+		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 0.01;
 		AIDA::IProfile1D * pValueVsIncidenceYZ = marlin::AIDAProcessor::histogramFactory(this)->createProfile1D(residGblFitHistName, NBinX, MinX, MaxX, 0,1); 
 
 		if (pValueVsIncidenceYZ) {
@@ -268,10 +362,10 @@ void	EUTelProcessorTrackAnalysis::initialiseResidualVsPositionHistograms(){
 		histTitle = sstm.str();
 		sstm.str(std::string(""));
 		histoInfo = histoMgr->getHistogramInfo(residGblFitHistName);
-		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 288;
+		NBinX = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xBin : 20;
 		MinX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMin :-10.6;
 		MaxX =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_xMax : 10.6;
-		NBinY = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yBin : 144;
+		NBinY = ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yBin : 10;
 		MinY =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yMin : -5.3;
 		MaxY =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_yMax : 5.3;
 		MinZ =  ( isHistoManagerAvailable && histoInfo ) ? histoInfo->_zMin : 0;

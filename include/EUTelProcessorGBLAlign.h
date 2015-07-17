@@ -26,13 +26,13 @@
 #include "EUTelUtility.h"
 #include "EUTelRunHeaderImpl.h"
 #include "EUTelExceptions.h"
-#include "EUTelTrackFitter.h"
 #include "EUTelGBLFitter.h"
 #include "EUTelGeometryTelescopeGeoDescription.h"
 #include "EUTelEventImpl.h"
 #include "EUTelMillepede.h"
 #include "EUTelTrack.h"
 #include "EUTelState.h"
+#include "EUTelReaderGenericLCIO.h"
 
 namespace eutelescope {
 

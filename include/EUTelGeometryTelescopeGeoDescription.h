@@ -307,6 +307,7 @@ class EUTelGeometryTelescopeGeoDescription
 
 	/** Plane normal vector (nx,ny,nz) */
 	TVector3 siPlaneNormal( int );
+    Eigen::Vector3d siPlaneNormalEig( int);
 
 	TVector3 siPlaneXAxis( int);
 
@@ -364,7 +365,9 @@ class EUTelGeometryTelescopeGeoDescription
 
 	// Geometry operations
     float findRad( const double globalPosStart[], const double globalPosFinish[], std::map< const int, double> &sensors, 	std::map< const int, double> &air );
-	int getSensorID( const float globalPos[] ) const;
+	int getSensorID(float const globalPos[] ) const;
+	int getSensorID(double const globalPos[] ) const;
+
 	int getSensorIDFromManager();
 
 
@@ -382,7 +385,7 @@ class EUTelGeometryTelescopeGeoDescription
 						TVector3& outputMomentum, float& arcLength, int& newNextPlaneID );
 
 	TVector3 getXYZMomentumfromArcLength(TVector3 momentum, TVector3 globalPositionStart, float charge, float  arcLength );
-	int testOutput(std::map<const int,double> & mapSensor, std::map<const int, double> & mapAir);
+	bool testOutput(std::map<const int,double> & mapSensor, std::map<const int, double> & mapAir);
 
 	//This outputs the total percentage radiation length for the full detector system. 
 	float calculateTotalRadiationLengthAndWeights(const double startD[3],const double endD[3], std::map<const int,double>&, std::map<const int,double> & );
@@ -394,6 +397,7 @@ class EUTelGeometryTelescopeGeoDescription
 
 	const TGeoHMatrix* getHMatrix( const double globalPos[] );
 	TMatrixD getRotMatrix( int sensorID );
+    Eigen::Matrix3d getRotMatrixEig( int sensorID );
 
 	/** Magnetic field */
 	const gear::BField& getMagneticField() const { return _gearManager->getBField(); };

@@ -192,6 +192,18 @@ public:
 
     m_tree->Branch("event_nr", &m_event_nr);
   }
+  static bool hasCollection(EVENT::LCEvent* evt){
+
+    const std::vector<std::string>*  names = evt->getCollectionNames();
+    std::vector< std::string >::const_iterator it= std::find(names->begin(), names->end(), "GBL");
+
+    return false;
+  }
+  ~GBL_trackOutput(){
+    if (m_tree){
+      m_tree->Write();
+    }
+  }
   virtual void pushCollection( EVENT::LCEvent* ev) {
     beginEvent();
     std::vector<EUTelTrack> tr = lc_reader.getTracks(ev, "tracks");
@@ -519,7 +531,7 @@ void EUTelOutputTTree::init()
   gStupitNameForShittyROOTFile = path;
 
 
-  m_gbl = new GBL_trackOutput("GBL_tracks");
+
 
   std::cout << "EUTelOutputTTree::init" << std::endl;
 }
@@ -559,9 +571,16 @@ void EUTelOutputTTree::processEvent(LCEvent * evt)
       m_out[*name]->pushCollection(col);
 
     }
+    if (GBL_trackOutput::hasCollection(evt))
+    {
+      if (!m_gbl)
+      {
+        m_gbl = new GBL_trackOutput("GBL_tracks");
+      }
+      
+      m_gbl->pushCollection(evt);
 
-    
-    m_gbl->pushCollection(evt);
+    }
 
     for (output_map_t::const_iterator it = m_out.begin(); it != m_out.end(); ++it){
       it->second->eventEnd();
@@ -575,6 +594,11 @@ void EUTelOutputTTree::end()
   for (output_map_t::const_iterator it = m_out.begin(); it != m_out.end(); ++it){
     delete it->second;
   }
+  if (m_gbl)
+  {
+    delete m_gbl;
+    m_gbl = NULL;
+  }
   if (gFile_)
   {
     std::cout << "closing  file " << std::endl;
@@ -583,11 +607,7 @@ void EUTelOutputTTree::end()
     delete gFile_;
     gFile_ = NULL;
   }
-  if (m_gbl)
-  {
-    delete m_gbl;
-    m_gbl = NULL;
-  }
+
 
   std::cout << "EUTelOutputTTree::end" << std::endl;
 }

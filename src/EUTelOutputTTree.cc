@@ -77,7 +77,7 @@ namespace eutelescope {
     std::string path;
   private:
 
-
+    
 
   };
 }
@@ -594,6 +594,7 @@ void EUTelOutputTTree::end()
   for (output_map_t::const_iterator it = m_out.begin(); it != m_out.end(); ++it){
     delete it->second;
   }
+  m_out.clear();
   if (m_gbl)
   {
     delete m_gbl;

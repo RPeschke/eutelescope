@@ -142,6 +142,7 @@ output::output(const std::string& name, const std::string& type) :m_event_nr(0),
   }
 
   m_tree = new TTree(name.c_str(), name.c_str());
+  m_tree->SetDirectory(gFile_->GetDirectory("/"));
   m_tree->Branch("ID", &m_id);
   m_tree->Branch("x", &m_x);
   m_tree->Branch("y", &m_y);
@@ -179,7 +180,13 @@ public:
   typedef EUTelTrack * data_t;
 
   GBL_trackOutput(const std::string& name )  {
+    if (!gFile_)
+    {
+      std::cout << "create file with name: " << gStupitNameForShittyROOTFile << std::endl;
+      gFile_ = new TFile(gStupitNameForShittyROOTFile.c_str(), "RECREATE");
+    }
     m_tree = new TTree(name.c_str(), name.c_str());
+    m_tree->SetDirectory(gFile_->GetDirectory("/"));
     m_tree->Branch("ID", &m_id);
     m_tree->Branch("x", &m_x);
     m_tree->Branch("y", &m_y);
